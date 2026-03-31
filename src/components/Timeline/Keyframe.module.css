@@ -1,0 +1,78 @@
+/* Keyframe — losange draggable sur la piste */
+.keyframe {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #f59e0b;
+  transform: translateX(-50%) translateY(-50%) rotate(45deg);
+  top: 50%;
+  cursor: grab;
+  z-index: 5;
+  transition: background 0.1s, transform 0.1s;
+}
+
+.keyframe:hover {
+  background: #fbbf24;
+  transform: translateX(-50%) translateY(-50%) rotate(45deg) scale(1.2);
+}
+
+.keyframe.dragging {
+  cursor: grabbing;
+  background: #f59e0b;
+  z-index: 20;
+}
+
+.contextMenu {
+  position: fixed;
+  background: #1a1f2e;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 1000;
+  min-width: 140px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.contextMenuItem {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  background: none;
+  border: none;
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.contextMenuItem:hover {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+}
+
+.contextMenuItem.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.tooltip {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1f2e;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: #e2e8f0;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 50;
+  display: none;
+}
+
+.keyframe:hover .tooltip {
+  display: block;
+}

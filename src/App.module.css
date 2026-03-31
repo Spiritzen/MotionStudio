@@ -1,0 +1,66 @@
+/* Layout principal de MotionStudio */
+.app {
+  display: grid;
+  grid-template-rows: 48px 1fr 56px 200px;
+  grid-template-columns: 60px 1fr 260px;
+  height: 100vh;
+  background: #0e1117;
+  overflow: hidden;
+  font-family: Inter, system-ui, sans-serif;
+  isolation: isolate; /* crée un stacking context racine propre — essentiel pour les z-index */
+}
+
+/* Barre du haut — pleine largeur, toujours au-dessus (z-index 1000) */
+.topBar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  overflow: visible;  /* IMPORTANT : ne pas mettre hidden — les dropdowns doivent déborder */
+  position: relative;
+  z-index: 1000;
+}
+
+/* Toolbar latérale gauche */
+.toolbar {
+  grid-column: 1;
+  grid-row: 2;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+}
+
+/* Canvas central */
+.canvas {
+  grid-column: 2;
+  grid-row: 2;
+  overflow: hidden;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Inspector droit */
+.inspector {
+  grid-column: 3;
+  grid-row: 2;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+}
+
+/* Contrôles de lecture — toute la largeur */
+.playback {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  overflow: hidden;
+  position: relative;
+  z-index: 20;
+}
+
+/* Timeline — toute la largeur */
+.timeline {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  overflow: hidden;
+  position: relative;
+  z-index: 20;
+}

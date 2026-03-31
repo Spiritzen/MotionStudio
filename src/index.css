@@ -1,0 +1,72 @@
+/* Reset global — MotionStudio */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-bg: #0e1117;
+  --color-surface: #141820;
+  --color-surface-2: #1a1f2e;
+  --color-accent: #8b5cf6;
+  --color-accent-timeline: #f59e0b;
+  --color-text: #e2e8f0;
+  --color-text-muted: #64748b;
+  --color-border: #1e293b;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Hiérarchie z-index globale */
+  --z-canvas: 1;
+  --z-panels: 10;
+  --z-toolbar: 20;
+  --z-timeline: 20;
+  --z-topbar: 1000;
+  --z-dropdown: 9999;
+  --z-modal: 99999;
+}
+
+/* Isolation du canvas Fabric — empêche son stacking context de dominer les dropdowns */
+/* IMPORTANT : ne pas toucher aux canvas enfants — upper-canvas doit rester position:absolute */
+.canvas-container {
+  isolation: isolate;
+  z-index: 1;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0e1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+button {
+  font-family: inherit;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 0.5;
+}

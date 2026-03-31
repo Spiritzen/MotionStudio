@@ -1,0 +1,64 @@
+/* Toolbar — colonne verticale d'outils */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  background: #141820;
+  border-right: 1px solid #1e293b;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.toolBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 18px;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+
+.toolBtn:hover {
+  background: #1a1f2e;
+  color: #e2e8f0;
+}
+
+.toolBtn.active {
+  background: rgba(139, 92, 246, 0.18);
+  color: #8b5cf6;
+}
+
+.separator {
+  width: 28px;
+  height: 1px;
+  background: #1e293b;
+  margin: 4px 0;
+}
+
+.toolLabel {
+  position: absolute;
+  left: 52px;
+  background: #1a1f2e;
+  color: #e2e8f0;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid #1e293b;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 100;
+}
+
+.toolBtn:hover .toolLabel {
+  opacity: 1;
+}

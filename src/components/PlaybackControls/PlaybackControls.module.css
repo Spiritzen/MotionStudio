@@ -1,0 +1,113 @@
+/* Contrôles de lecture */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #141820;
+  border-top: 1px solid #1e293b;
+  padding: 0 16px;
+  height: 100%;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: #0e1117;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border: 1px solid #1e293b;
+}
+
+.btn:hover {
+  background: #1a1f2e;
+  border-color: #8b5cf6;
+  color: #8b5cf6;
+}
+
+.btn.active {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: #8b5cf6;
+  color: #8b5cf6;
+}
+
+.timecode {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  background: #0e1117;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.timecodeCurrent {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.timecodeSep {
+  color: #334155;
+}
+
+.timecodeTotal {
+  color: #64748b;
+}
+
+.scrubber {
+  flex: 1;
+  max-width: 300px;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+.durationRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.durationLabel {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.durationInput {
+  width: 44px;
+  background: #0e1117;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 3px 5px;
+  text-align: center;
+  font-family: inherit;
+  outline: none;
+}
+
+.durationInput:focus {
+  border-color: #8b5cf6;
+}
+
+.separator {
+  width: 1px;
+  height: 24px;
+  background: #1e293b;
+  margin: 0 4px;
+}
+
+.fps {
+  font-size: 11px;
+  color: #64748b;
+}

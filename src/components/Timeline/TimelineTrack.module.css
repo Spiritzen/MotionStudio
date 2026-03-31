@@ -1,0 +1,83 @@
+/* Piste de la timeline */
+.track {
+  display: flex;
+  align-items: stretch;
+  height: 28px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.trackHeader {
+  /* largeur contrôlée via style inline (headerWidth prop) */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-right: 1px solid #1e293b;
+  background: #141820;
+  cursor: pointer;
+  user-select: none;
+}
+
+.trackHeader:hover {
+  background: #1a1f2e;
+}
+
+.objectName {
+  font-size: 10px;
+  color: #e2e8f0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  padding-left: 20px; /* indentation sous l'en-tête objet */
+}
+
+.propertyName {
+  font-size: 9px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.trackBody {
+  flex: 1;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.trackBar {
+  position: absolute;
+  inset: 4px 0;
+  border-radius: 2px;
+  opacity: 0.15;
+}
+
+/* Couleurs des pistes selon la propriété */
+.track[data-property="x"] .trackBar { background: #8b5cf6; }
+.track[data-property="y"] .trackBar { background: #3b82f6; }
+.track[data-property="opacity"] .trackBar { background: #10b981; }
+.track[data-property="scaleX"] .trackBar { background: #f59e0b; }
+.track[data-property="scaleY"] .trackBar { background: #f59e0b; }
+.track[data-property="angle"] .trackBar { background: #ef4444; }
+
+.deleteBtn {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.deleteBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}

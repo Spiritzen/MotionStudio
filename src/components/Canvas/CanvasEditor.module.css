@@ -1,0 +1,36 @@
+/* Conteneur scrollable du canvas Fabric.js */
+.scrollContainer {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: #0e1117;
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b #0e1117;
+}
+
+.scrollContainer::-webkit-scrollbar        { width: 8px; height: 8px; }
+.scrollContainer::-webkit-scrollbar-track  { background: #0e1117; }
+.scrollContainer::-webkit-scrollbar-thumb  { background: #1e293b; border-radius: 4px; }
+.scrollContainer::-webkit-scrollbar-thumb:hover { background: #2d3748; }
+.scrollContainer::-webkit-scrollbar-corner { background: #0e1117; }
+
+/* Aligne et centre le canvas dans la zone scrollable */
+.canvasOuter {
+  min-width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.canvasContainer {
+  position: relative;
+  box-shadow: 0 0 0 1px #1e293b, 0 8px 32px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+}
+
+.canvasContainer canvas {
+  display: block;
+}
