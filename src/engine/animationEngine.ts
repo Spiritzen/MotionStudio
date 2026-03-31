@@ -65,8 +65,8 @@ function getAllVideoObjectPairs(): VideoPair[] {
     .filter((pair): pair is VideoPair => pair.motionObj !== undefined)
 }
 
-/** Synchronise la visibilité des objets vidéo selon la plage timeline */
-function syncVideoVisibility(time: number): void {
+/** Synchronise la visibilité de TOUS les objets selon leur plage startTime/endTime */
+function syncAllVisibility(time: number): void {
   if (!state.fabricCanvas) return
   const motionObjects = useObjectStore.getState().objects
 
@@ -76,10 +76,10 @@ function syncVideoVisibility(time: number): void {
     if (!motionId) return
 
     const motionObj = motionObjects.find((mo) => mo.id === motionId)
-    if (!motionObj || motionObj.type !== 'video') return
+    if (!motionObj) return
 
     const inRange = time >= (motionObj.startTime ?? 0) && time < (motionObj.endTime ?? state.duration)
-    obj.visible = inRange
+    if (obj.visible !== inRange) obj.visible = inRange
   })
 
   state.fabricCanvas.requestRenderAll()
@@ -143,6 +143,7 @@ function rafLoop(): void {
   // Synchroniser l'audio (entrée/sortie de plage automatique)
   audioManager.syncToTime(newTime)
 
+  syncAllVisibility(newTime)
   applyStateAtTime(newTime)
   for (const cb of state.tickCallbacks) cb(newTime)
 
@@ -182,7 +183,7 @@ export const animationEngine = {
     state.startAnimTime = state.currentTime
 
     // Synchroniser la visibilité avant de démarrer
-    syncVideoVisibility(state.currentTime)
+    syncAllVisibility(state.currentTime)
 
     // Démarrer les vidéos dans leur plage — unmute via geste utilisateur (clic Play)
     getAllVideoObjectPairs().forEach(({ videoEl, motionObj, videoOffset }) => {
@@ -229,7 +230,7 @@ export const animationEngine = {
     })
     audioManager.stopAll()
     applyStateAtTime(0)
-    syncVideoVisibility(0)
+    syncAllVisibility(0)
     for (const cb of state.tickCallbacks) cb(0)
   },
 
@@ -251,7 +252,7 @@ export const animationEngine = {
 
     audioManager.seekAll(t)
     applyStateAtTime(t)
-    syncVideoVisibility(t)
+    syncAllVisibility(t)
 
     // Reprendre si en lecture
     if (state.isPlaying) {

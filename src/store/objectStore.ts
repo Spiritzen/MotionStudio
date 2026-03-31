@@ -5,12 +5,14 @@ import { MotionObject } from '../types'
 interface ObjectState {
   objects: MotionObject[]
   selectedObjectId: string | null
+  selectedObjectIds: string[]
   // Actions
   addObject: (obj: MotionObject) => void
   removeObject: (id: string) => void
   updateObject: (id: string, patch: Partial<MotionObject>) => void
   updateClip: (id: string, startTime: number, endTime: number) => void
   selectObject: (id: string | null) => void
+  selectMultipleObjects: (ids: string[]) => void
   setObjects: (objects: MotionObject[]) => void
   reorderObjects: (draggedId: string, targetId: string) => void
 }
@@ -18,6 +20,7 @@ interface ObjectState {
 export const useObjectStore = create<ObjectState>((set) => ({
   objects: [],
   selectedObjectId: null,
+  selectedObjectIds: [],
 
   addObject: (obj) =>
     set((state) => ({ objects: [...state.objects, obj] })),
@@ -40,7 +43,12 @@ export const useObjectStore = create<ObjectState>((set) => ({
       ),
     })),
 
-  selectObject: (id) => set({ selectedObjectId: id }),
+  selectObject: (id) => set({ selectedObjectId: id, selectedObjectIds: id ? [id] : [] }),
+
+  selectMultipleObjects: (ids) => set({
+    selectedObjectIds: ids,
+    selectedObjectId: ids.length === 1 ? ids[0] : null,
+  }),
 
   setObjects: (objects) => set({ objects }),
 

@@ -12,7 +12,7 @@ import { useTimelineStore } from './store/timelineStore'
 import { useUIStore } from './store/uiStore'
 import { animationEngine } from './engine/animationEngine'
 import { audioManager } from './engine/audioManager'
-import { loadFromLocalStorage, startAutosave } from './utils/storage'
+import { loadFromLocalStorage, saveToLocalStorage, startAutosave } from './utils/storage'
 import { deserializeProject } from './utils/serializer'
 import { serializeProject } from './utils/serializer'
 import { useHistoryStore, HistorySnapshot } from './store/historyStore'
@@ -42,6 +42,7 @@ export default function App() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fabricJSON:  (canvas as any).toJSON(['motionId']),
       objectsJSON: JSON.stringify(useObjectStore.getState().objects),
+      tracksJSON:  JSON.stringify(useTimelineStore.getState().tracks),
     })
   }, [pushSnapshot])
 
@@ -57,9 +58,12 @@ export default function App() {
     const restoredObjects = JSON.parse(snapshot.objectsJSON)
     setObjects(restoredObjects)
 
+    const restoredTracks = JSON.parse(snapshot.tracksJSON)
+    setTracks(restoredTracks)
+
     canvas.discardActiveObject()
     canvas.renderAll()
-  }, [setObjects])
+  }, [setObjects, setTracks])
 
   const handleUndo = useCallback(async () => {
     await applySnapshot(undo())
@@ -123,13 +127,12 @@ export default function App() {
     if (!fabricReady) return
 
     const stopAutosave = startAutosave(
-      () => {
+      async () => {
         if (!fabricCanvasRef.current) {
-          // Retourner un projet minimal si le canvas n'est pas prêt
           return {
             id: 'temp',
             name: projectName,
-            version: '1.0.0',
+            version: '1.1.0',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             duration,
@@ -151,7 +154,8 @@ export default function App() {
           { duration, fps }
         )
       },
-      () => isDirty
+      () => isDirty,
+      () => setDirty(false)   // indicateur topbar effacé après autosave
     )
 
     return stopAutosave
@@ -289,6 +293,24 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault()
         await handleRedo()
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        if (!fabricCanvasRef.current) return
+        try {
+          const project = await serializeProject(
+            fabricCanvasRef.current,
+            {
+              objects: useObjectStore.getState().objects,
+              tracks:  useTimelineStore.getState().tracks,
+              ui:      { projectName: useUIStore.getState().projectName, activeFormat: useUIStore.getState().activeFormat },
+            },
+            { duration: useTimelineStore.getState().duration, fps: useTimelineStore.getState().fps }
+          )
+          saveToLocalStorage(project)
+          setDirty(false)
+        } catch (err) {
+          console.error('[MotionStudio] Ctrl+S échoué:', err)
+        }
       } else if (!e.ctrlKey && !e.metaKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault()
         const currentMode = useUIStore.getState().timelineMode

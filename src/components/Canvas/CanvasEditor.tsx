@@ -5,11 +5,13 @@ import {
   Rect, Circle, IText,
   Image as FabricImage,
   FabricObject,
+  ActiveSelection,
 } from 'fabric'
 import { useObjectStore } from '../../store/objectStore'
 import { useTimelineStore } from '../../store/timelineStore'
 import { useUIStore } from '../../store/uiStore'
 import { animationEngine } from '../../engine/animationEngine'
+import { audioManager } from '../../engine/audioManager'
 import { MotionObject } from '../../types'
 import { generateId } from '../../utils/generateId'
 import styles from './CanvasEditor.module.css'
@@ -45,7 +47,7 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
   const captureRef     = useRef<(() => void) | undefined>(onCapture)
   captureRef.current   = onCapture
 
-  const { addObject, removeObject, selectObject } = useObjectStore()
+  const { addObject, removeObject, selectObject, selectMultipleObjects } = useObjectStore()
   const { removeTracksForObject } = useTimelineStore()
   const { activeTool, setActiveTool, activeFormat, setDirty, forceInspectorUpdate, canvasZoom, setCanvasZoom } = useUIStore()
 
@@ -83,38 +85,33 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
 
       for (const obj of fc.getObjects()) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const videoEl   = (obj as any)._videoEl   as HTMLVideoElement | undefined
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ctx       = (obj as any)._ctx       as CanvasRenderingContext2D | undefined
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const offscreen = (obj as any)._offscreen as HTMLCanvasElement | undefined
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const motionId  = (obj as any).motionId   as string | undefined
-
-        if (!videoEl || !ctx || !offscreen || !motionId) continue
+        if (!motionId) continue
 
         const motionObj = motionObjects.find(mo => mo.id === motionId)
         if (!motionObj) continue
 
         const inRange = currentTime >= (motionObj.startTime ?? 0) && currentTime < (motionObj.endTime ?? Infinity)
 
-        if (inRange) {
-          if (!obj.visible) {
-            obj.visible = true
-            needsRender = true
-          }
-          if (videoEl.readyState >= 2) {
-            ctx.drawImage(videoEl, 0, 0, offscreen.width, offscreen.height)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ;(obj as any).dirty = true
-            needsRender = true
-          }
-        } else {
-          // Hors plage → masquer l'objet pour éviter qu'il reste affiché
-          if (obj.visible) {
-            obj.visible = false
-            needsRender = true
-          }
+        // ── Visibilité pour TOUS les types ──────────────────────────────────
+        if (obj.visible !== inRange) {
+          obj.visible = inRange
+          needsRender = true
+        }
+
+        // ── Rendu vidéo — seulement si dans la plage et éléments présents ──
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const videoEl   = (obj as any)._videoEl   as HTMLVideoElement | undefined
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ctx       = (obj as any)._ctx       as CanvasRenderingContext2D | undefined
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const offscreen = (obj as any)._offscreen as HTMLCanvasElement | undefined
+
+        if (videoEl && ctx && offscreen && inRange && videoEl.readyState >= 2) {
+          ctx.drawImage(videoEl, 0, 0, offscreen.width, offscreen.height)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(obj as any).dirty = true
+          needsRender = true
         }
       }
 
@@ -124,17 +121,15 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
     masterRafRef.current = requestAnimationFrame(masterLoop)
 
     // ── Événements de sélection ────────────────────────────────────────────
-    canvas.on('selection:created', (e) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const id = (e.selected?.[0] as any)?.motionId as string | undefined
-      if (id) selectObject(id)
-    })
-    canvas.on('selection:updated', (e) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const id = (e.selected?.[0] as any)?.motionId as string | undefined
-      if (id) selectObject(id)
-    })
-    canvas.on('selection:cleared', () => selectObject(null))
+    const getSelectedIds = () =>
+      canvas.getActiveObjects()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((o) => (o as any).motionId as string | undefined)
+        .filter((id): id is string => !!id)
+
+    canvas.on('selection:created', () => selectMultipleObjects(getSelectedIds()))
+    canvas.on('selection:updated', () => selectMultipleObjects(getSelectedIds()))
+    canvas.on('selection:cleared', () => selectMultipleObjects([]))
 
     // ── Modifications (drag, resize, rotate) → refresh Inspector + dirty ──
     const onInteract = () => {
@@ -283,6 +278,35 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
       isDraggingRef.current = !!(e.e?.buttons)  // true seulement si bouton pressé pendant mouvement
     })
     canvas.on('mouse:up', () => { isDraggingRef.current = false })
+
+    // ── Double-clic sur texte / groupe ────────────────────────────────────
+    canvas.on('mouse:dblclick', (e: any) => {
+      const target = e.target
+      if (!target) return
+
+      if (target.type === 'i-text') {
+        canvas.setActiveObject(target)
+        ;(target as IText).enterEditing()
+        ;(target as IText).selectAll()
+        canvas.requestRenderAll()
+        return
+      }
+
+      if (target.type === 'group') {
+        const children = (target as ActiveSelection).getObjects?.() ?? []
+        if (children.length > 0) {
+          canvas.discardActiveObject()
+          canvas.setActiveObject(new ActiveSelection(children, { canvas }))
+          canvas.requestRenderAll()
+        }
+      }
+    })
+
+    // Quand on quitte l'édition → marquer comme modifié + snapshot
+    canvas.on('text:editing:exited', () => {
+      setDirty(true)
+      captureRef.current?.()
+    })
 
     return () => {
       if (masterRafRef.current !== null) cancelAnimationFrame(masterRafRef.current)
@@ -503,6 +527,22 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
         return
       }
 
+      // Ctrl+A → tout sélectionner
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        const tag2 = (document.activeElement as HTMLElement)?.tagName
+        if (tag2 === 'INPUT' || tag2 === 'TEXTAREA') return
+        e.preventDefault()
+        const objs = canvas.getObjects()
+        if (objs.length === 0) return
+        if (objs.length === 1) {
+          canvas.setActiveObject(objs[0])
+        } else {
+          canvas.setActiveObject(new ActiveSelection(objs, { canvas }))
+        }
+        canvas.requestRenderAll()
+        return
+      }
+
       // Escape → retour au sélecteur
       if (e.key === 'Escape') {
         setActiveTool('select')
@@ -513,32 +553,41 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
 
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
 
-      const active = canvas.getActiveObject()
-      if (!active) return
+      const activeObjects = canvas.getActiveObjects()
+      if (activeObjects.length === 0) return
       // Ne pas supprimer pendant l'édition de texte inline
-      if (active.type === 'i-text' && (active as IText).isEditing) return
+      if (activeObjects.some((o) => o.type === 'i-text' && (o as IText).isEditing)) return
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const motionId = (active as any).motionId as string | undefined
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stopLoop = (active as any)._stopRenderLoop as (() => void) | undefined
-      if (stopLoop) stopLoop()
+      for (const active of activeObjects) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const motionId = (active as any).motionId as string | undefined
+        // Nettoyage vidéo : pause + libérer blob URL
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const videoEl = (active as any)._videoEl as HTMLVideoElement | undefined
+        if (videoEl) {
+          videoEl.pause()
+          if (videoEl.src.startsWith('blob:')) URL.revokeObjectURL(videoEl.src)
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const stopLoop = (active as any)._stopRenderLoop as (() => void) | undefined
+        if (stopLoop) stopLoop()
+        canvas.remove(active)
+        if (motionId) {
+          audioManager.removeTrack(motionId)
+          removeObject(motionId)
+          removeTracksForObject(motionId)
+        }
+      }
 
-      canvas.remove(active)
       canvas.discardActiveObject()
       canvas.renderAll()
-
-      if (motionId) {
-        removeObject(motionId)
-        removeTracksForObject(motionId)
-        setDirty(true)
-        captureRef.current?.()
-      }
+      setDirty(true)
+      captureRef.current?.()
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [removeObject, removeTracksForObject, setDirty, setActiveTool, setCanvasZoom])
+  }, [removeObject, removeTracksForObject, selectMultipleObjects, setDirty, setActiveTool, setCanvasZoom])
 
   // ── Format + zoom → redimensionner et zoomer le canvas ───────────────────
   useEffect(() => {

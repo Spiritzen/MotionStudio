@@ -19,6 +19,7 @@ const ICONES_TYPE: Record<MotionObject['type'], string> = {
   image:  '🖼',
   video:  '🎬',
   audio:  '♪',
+  group:  '⊞',
 }
 
 const KF_PROP_LABELS: Record<string, string> = {
@@ -260,6 +261,14 @@ export default function Timeline({ fabricRef, onCapture, onUndo, onRedo, onSplit
         </div>
 
         <div className={styles.toolbarSeparator} />
+
+        {/* Badge EN LECTURE */}
+        {isPlaying && (
+          <div className={styles.playingBadge}>
+            <span className={styles.playingDot} />
+            EN LECTURE
+          </div>
+        )}
 
         {/* Bouton ciseaux — mode Split */}
         <button

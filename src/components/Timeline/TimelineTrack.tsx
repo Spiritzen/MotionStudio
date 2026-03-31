@@ -10,6 +10,7 @@ const CLIP_COLORS: Record<MotionObject['type'], string> = {
   image:  '#14b8a6',
   video:  '#f97316',
   audio:  '#06b6d4',
+  group:  '#a78bfa',
 }
 
 type DragMode = 'move' | 'left' | 'right' | null

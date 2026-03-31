@@ -47,8 +47,8 @@ export default function ProjectManager({ fabricCanvas }: ProjectManagerProps) {
     return () => document.removeEventListener('mousedown', handler, true)
   }, [])
 
-  // Obtenir le projet sérialisé
-  function getProject() {
+  // Obtenir le projet sérialisé (async — sérialise les médias en base64)
+  async function getProject() {
     if (!fabricCanvas) throw new Error('Canvas non initialisé')
     return serializeProject(
       fabricCanvas,
@@ -58,9 +58,9 @@ export default function ProjectManager({ fabricCanvas }: ProjectManagerProps) {
   }
 
   // Sauvegarder manuellement
-  function handleSave() {
+  async function handleSave() {
     try {
-      const project = getProject()
+      const project = await getProject()
       saveToLocalStorage(project)
       setDirty(false)
       setSaved(true)
@@ -119,10 +119,10 @@ export default function ProjectManager({ fabricCanvas }: ProjectManagerProps) {
     e.target.value = ''
   }
 
-  // Exporter .motionstudio
-  function handleExportFile() {
+  // Exporter .motionstudio (avec médias embarqués)
+  async function handleExportFile() {
     try {
-      const project = getProject()
+      const project = await getProject()
       exportProjectFile(project)
     } catch (err) {
       console.error('[MotionStudio] Erreur export:', err)
@@ -133,7 +133,7 @@ export default function ProjectManager({ fabricCanvas }: ProjectManagerProps) {
   // Exporter code GSAP → clipboard
   async function handleExportGSAP() {
     try {
-      const project = getProject()
+      const project = await getProject()
       const code = generateGSAPCode(project)
       await navigator.clipboard.writeText(code)
       alert('Code GSAP copié dans le presse-papier !')

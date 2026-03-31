@@ -30,12 +30,19 @@ export function clearLocalStorage(): void {
 // Lance l'autosave si isDirty === true, toutes les 30s
 // Retourne la fonction de nettoyage pour annuler l'intervalle
 export function startAutosave(
-  getProject: () => Project,
-  isDirty: () => boolean
+  getProject: () => Promise<Project>,
+  isDirty:    () => boolean,
+  onSaved?:   () => void
 ): () => void {
-  const interval = setInterval(() => {
-    if (isDirty()) {
-      saveToLocalStorage(getProject())
+  const interval = setInterval(async () => {
+    if (!isDirty()) return
+    try {
+      const project = await getProject()
+      saveToLocalStorage(project)
+      onSaved?.()
+      console.log('[Autosave] Projet sauvegardé automatiquement')
+    } catch (e) {
+      console.warn('[Autosave] Échec:', e)
     }
   }, AUTOSAVE_INTERVAL)
 

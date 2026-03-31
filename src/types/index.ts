@@ -4,7 +4,7 @@ export interface MotionObject {
   id: string
   fabricId: string
   name: string
-  type: 'rect' | 'circle' | 'text' | 'image' | 'video' | 'audio'
+  type: 'rect' | 'circle' | 'text' | 'image' | 'video' | 'audio' | 'group'
   visible: boolean
   locked: boolean
   startTime?: number  // secondes — défaut 0
@@ -36,6 +36,13 @@ export interface CanvasFormat {
   label: string       // ex: "YouTube 16:9", "TikTok 9:16"
 }
 
+export interface MediaCacheEntry {
+  type:     'video' | 'image' | 'audio'
+  dataUrl:  string      // base64 data URL
+  mimeType: string
+  filename: string
+}
+
 export interface Project {
   id: string
   name: string
@@ -53,6 +60,7 @@ export interface Project {
   objects: MotionObject[]
   fabricJSON: object  // snapshot Fabric.js complet via canvas.toJSON()
   timeline: AnimationTrack[]
+  mediaCache?: Record<string, MediaCacheEntry>  // médias embarqués en base64
 }
 
 // Formats prédéfinis disponibles dans l'app

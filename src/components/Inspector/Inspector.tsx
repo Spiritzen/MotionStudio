@@ -1,6 +1,6 @@
 // Inspector — propriétés de l'objet sélectionné
 import { useEffect, useState, useCallback } from 'react'
-import { Canvas as FabricCanvas, FabricObject } from 'fabric'
+import { Canvas as FabricCanvas, FabricObject, Group as FabricGroup } from 'fabric'
 import { useObjectStore } from '../../store/objectStore'
 import { useTimelineStore } from '../../store/timelineStore'
 import { useUIStore } from '../../store/uiStore'
@@ -12,6 +12,26 @@ interface InspectorProps {
   fabricCanvas: FabricCanvas | null
 }
 
+const EASING_OPTIONS = [
+  { value: 'linear',              label: '— Linear' },
+  { value: 'power1.out',          label: '↘ Ease Out' },
+  { value: 'power1.in',           label: '↗ Ease In' },
+  { value: 'power1.inOut',        label: '⟨⟩ Ease InOut' },
+  { value: 'power2.out',          label: '↘↘ Power2 Out' },
+  { value: 'power2.in',           label: '↗↗ Power2 In' },
+  { value: 'power2.inOut',        label: '⟨⟨⟩⟩ Power2 InOut' },
+  { value: 'power3.out',          label: '↘↘↘ Power3 Out' },
+  { value: 'power3.in',           label: '↗↗↗ Power3 In' },
+  { value: 'power3.inOut',        label: '⟨⟨⟨⟩⟩⟩ Power3 InOut' },
+  { value: 'back.out(1.7)',        label: '↩ Back Out' },
+  { value: 'bounce.out',          label: '⤵ Bounce Out' },
+  { value: 'elastic.out(1,0.3)',   label: '〜 Elastic Out' },
+  { value: 'expo.out',            label: '⤵⤵ Expo Out' },
+  { value: 'expo.in',             label: '↑↑ Expo In' },
+  { value: 'circ.out',            label: '○ Circ Out' },
+  { value: 'circ.inOut',          label: '◎ Circ InOut' },
+]
+
 const PROPRIETES_ANIMABLES: { key: AnimationTrack['property']; label: string }[] = [
   { key: 'x', label: 'Position X' },
   { key: 'y', label: 'Position Y' },
@@ -22,8 +42,8 @@ const PROPRIETES_ANIMABLES: { key: AnimationTrack['property']; label: string }[]
 ]
 
 export default function Inspector({ fabricCanvas }: InspectorProps) {
-  const { objects, selectedObjectId, updateObject } = useObjectStore()
-  const { tracks, addTrack, addKeyframe, currentTime } = useTimelineStore()
+  const { objects, selectedObjectId, selectedObjectIds, updateObject, addObject, removeObject, selectMultipleObjects } = useObjectStore()
+  const { tracks, addTrack, addKeyframe, updateKeyframe, deleteKeyframe, removeTracksForObject, currentTime } = useTimelineStore()
   const { activeFormat, setActiveFormat, setDirty, inspectorRefreshKey } = useUIStore()
 
   const objetSelectionne = objects.find((o) => o.id === selectedObjectId)
@@ -159,6 +179,142 @@ export default function Inspector({ fabricCanvas }: InspectorProps) {
     return typeof fill === 'string' ? fill : '#e2e8f0'
   }
 
+  // Grouper les objets sélectionnés
+  function handleGroup() {
+    if (!fabricCanvas || selectedObjectIds.length < 2) return
+    const activeObjs = fabricCanvas.getActiveObjects()
+    if (activeObjs.length < 2) return
+
+    fabricCanvas.discardActiveObject()
+    activeObjs.forEach((o) => fabricCanvas.remove(o))
+
+    const groupId = crypto.randomUUID()
+    const group = new FabricGroup(activeObjs, {
+      selectable: true, evented: true,
+      hasControls: true, hasBorders: true,
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(group as any).motionId = groupId
+
+    fabricCanvas.add(group)
+    fabricCanvas.setActiveObject(group)
+    fabricCanvas.renderAll()
+
+    // Retirer les objets individuels du store + leurs pistes
+    selectedObjectIds.forEach((id) => {
+      removeTracksForObject(id)
+      removeObject(id)
+    })
+
+    // Ajouter le groupe au store
+    const dur = useTimelineStore.getState().duration
+    addObject({
+      id: groupId, fabricId: groupId,
+      name: 'Groupe',
+      type: 'group',
+      visible: true, locked: false,
+      startTime: 0, endTime: dur,
+    })
+    selectMultipleObjects([groupId])
+    setDirty(true)
+  }
+
+  // Dégrouper le groupe sélectionné
+  function handleUngroup() {
+    if (!fabricCanvas || selectedObjectIds.length !== 1) return
+    const obj = fabricCanvas.getObjects().find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (o) => (o as any).motionId === selectedObjectIds[0]
+    )
+    if (!obj || obj.type !== 'group') return
+    const group = obj as FabricGroup
+
+    // Calculer les transforms absolus de chaque enfant
+    const children = [...group.getObjects()]
+    fabricCanvas.remove(group)
+
+    const groupId = selectedObjectIds[0]
+    removeTracksForObject(groupId)
+    removeObject(groupId)
+
+    const dur = useTimelineStore.getState().duration
+    const newIds: string[] = []
+    children.forEach((child, i) => {
+      // Appliquer le transform du groupe sur l'enfant
+      const matrix = group.calcTransformMatrix()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(child as any).group = undefined
+      child.set({
+        left:   (child.left ?? 0) + (matrix[4] ?? 0),
+        top:    (child.top  ?? 0) + (matrix[5] ?? 0),
+        selectable: true, evented: true,
+        hasControls: true, hasBorders: true,
+      })
+      child.setCoords()
+
+      const childId = crypto.randomUUID()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(child as any).motionId = childId
+      fabricCanvas.add(child)
+
+      addObject({
+        id: childId, fabricId: childId,
+        name: `Objet ${i + 1}`,
+        type: 'rect',   // type générique — l'objet Fabric garde son vrai type
+        visible: true, locked: false,
+        startTime: 0, endTime: dur,
+      })
+      newIds.push(childId)
+    })
+
+    fabricCanvas.renderAll()
+    selectMultipleObjects(newIds)
+    setDirty(true)
+  }
+
+  // Multi-sélection : afficher un panel condensé
+  if (selectedObjectIds.length > 1) {
+    return (
+      <div className={styles.inspector}>
+        <div className={styles.header}>Sélection multiple</div>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>{selectedObjectIds.length} objets sélectionnés</div>
+          <div className={styles.row}>
+            <span className={styles.label}>Opacité</span>
+            <input
+              type="range"
+              className={styles.slider}
+              min={0}
+              max={100}
+              defaultValue={100}
+              onChange={(e) => {
+                if (!fabricCanvas) return
+                const opacity = Number(e.target.value) / 100
+                fabricCanvas.getActiveObjects().forEach((obj) => {
+                  obj.set('opacity', opacity)
+                })
+                fabricCanvas.renderAll()
+                setDirty(true)
+              }}
+            />
+          </div>
+        </div>
+        <div className={styles.section}>
+          <button className={styles.keyframeBtn} onClick={handleGroup}>
+            <span>Grouper</span>
+            <span className={styles.keyframeIcon}>⊞ Groupe</span>
+          </button>
+        </div>
+        <div className={styles.empty}>
+          Sélectionnez un seul objet<br />pour voir ses propriétés
+        </div>
+      </div>
+    )
+  }
+
+  // Groupe sélectionné → bouton Dégrouper
+  const isGroupSelected = objetSelectionne?.type === 'group'
+
   // Affichage si aucun objet sélectionné : propriétés du canvas
   if (!objetSelectionne) {
     return (
@@ -222,6 +378,17 @@ export default function Inspector({ fabricCanvas }: InspectorProps) {
             setDirty(true)
           }}
         />
+        {/* Bouton Dégrouper — uniquement pour les groupes */}
+        {isGroupSelected && (
+          <button
+            className={styles.keyframeBtn}
+            style={{ marginTop: 8 }}
+            onClick={handleUngroup}
+          >
+            <span>Dégrouper</span>
+            <span className={styles.keyframeIcon}>⊟ Séparer</span>
+          </button>
+        )}
       </div>
 
       {/* Section Audio — visible pour vidéo et audio */}
@@ -530,17 +697,51 @@ export default function Inspector({ fabricCanvas }: InspectorProps) {
       {objetSelectionne.type !== 'audio' && (
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Keyframes — t={currentTime.toFixed(2)}s</div>
-        {PROPRIETES_ANIMABLES.map(({ key, label }) => (
-          <button
-            key={key}
-            className={styles.keyframeBtn}
-            onClick={() => ajouterKeyframe(key)}
-            title={`Ajouter un keyframe pour ${label} à t=${currentTime.toFixed(2)}s`}
-          >
-            <span>{label}</span>
-            <span className={styles.keyframeIcon}>◆ Ajouter</span>
-          </button>
-        ))}
+        {PROPRIETES_ANIMABLES.map(({ key, label }) => {
+          const piste = tracks.find(
+            (t) => t.objectId === selectedObjectId && t.property === key
+          )
+          return (
+            <div key={key} className={styles.kfPropGroup}>
+              <button
+                className={styles.keyframeBtn}
+                onClick={() => ajouterKeyframe(key)}
+                title={`Ajouter un keyframe pour ${label} à t=${currentTime.toFixed(2)}s`}
+              >
+                <span>{label}</span>
+                <span className={styles.keyframeIcon}>◆ Ajouter</span>
+              </button>
+              {piste && [...piste.keyframes]
+                .sort((a, b) => a.time - b.time)
+                .map((kf) => (
+                  <div key={kf.id} className={styles.keyframeRow}>
+                    <span className={styles.kfTime}>{kf.time.toFixed(2)}s</span>
+                    <span className={styles.kfValue}>
+                      {typeof kf.value === 'number' ? kf.value.toFixed(1) : String(kf.value)}
+                    </span>
+                    <select
+                      className={styles.easingSelect}
+                      value={kf.easing ?? 'linear'}
+                      onChange={(e) => {
+                        updateKeyframe(piste.id, kf.id, { easing: e.target.value })
+                        setDirty(true)
+                      }}
+                    >
+                      {EASING_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      className={styles.kfDeleteBtn}
+                      onClick={() => { deleteKeyframe(piste.id, kf.id); setDirty(true) }}
+                      title="Supprimer ce keyframe"
+                    >✕</button>
+                  </div>
+                ))
+              }
+            </div>
+          )
+        })}
       </div>
       )}
     </div>

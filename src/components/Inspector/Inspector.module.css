@@ -159,6 +159,74 @@
   color: #f59e0b;
 }
 
+.kfPropGroup {
+  margin-bottom: 8px;
+}
+
+.kfPropGroup:last-child {
+  margin-bottom: 0;
+}
+
+.keyframeRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  padding-left: 6px;
+}
+
+.kfTime {
+  font-size: 10px;
+  color: #f59e0b;
+  width: 36px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.kfValue {
+  font-size: 10px;
+  color: #94a3b8;
+  width: 38px;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.easingSelect {
+  flex: 1;
+  background: #141820;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  color: #8b5cf6;
+  font-size: 10px;
+  padding: 2px 4px;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.easingSelect:focus {
+  border-color: #8b5cf6;
+}
+
+.kfDeleteBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.kfDeleteBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
 .empty {
   display: flex;
   align-items: center;

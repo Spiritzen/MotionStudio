@@ -165,6 +165,10 @@ class AudioManager {
   getDuration(id: string): number {
     return this.tracks.get(id)?.buffer.duration ?? 0
   }
+
+  getBuffer(id: string): AudioBuffer | null {
+    return this.tracks.get(id)?.buffer ?? null
+  }
 }
 
 export const audioManager = new AudioManager()

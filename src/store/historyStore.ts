@@ -4,6 +4,7 @@ import { create } from 'zustand'
 export interface HistorySnapshot {
   fabricJSON:  object  // snapshot complet du canvas Fabric
   objectsJSON: string  // snapshot des MotionObjects (JSON stringifié)
+  tracksJSON:  string  // snapshot des AnimationTracks (JSON stringifié)
 }
 
 interface HistoryStore {
