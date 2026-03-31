@@ -20,6 +20,7 @@ interface TimelineState {
   setIsPlaying: (val: boolean) => void
   setDuration: (val: number) => void
   setTracks: (tracks: AnimationTrack[]) => void
+  insertTrack: (track: AnimationTrack) => void
 }
 
 export const useTimelineStore = create<TimelineState>((set) => ({
@@ -100,4 +101,9 @@ export const useTimelineStore = create<TimelineState>((set) => ({
   setDuration: (val) => set({ duration: Math.max(1, val) }),
 
   setTracks: (tracks) => set({ tracks }),
+
+  insertTrack: (track) =>
+    set((state) => ({
+      tracks: [...state.tracks, track],
+    })),
 }))

@@ -9,8 +9,9 @@ export interface MotionObject {
   locked: boolean
   startTime?: number  // secondes — défaut 0
   endTime?: number    // secondes — défaut = durée totale
-  volume?: number     // 0–1 — défaut 1 (vidéo et audio uniquement)
-  muted?: boolean     // défaut false
+  volume?: number      // 0–1 — défaut 1 (vidéo et audio uniquement)
+  muted?: boolean      // défaut false
+  videoOffset?: number // offset en secondes dans le fichier vidéo (après split)
 }
 
 export interface Keyframe {

@@ -1,6 +1,6 @@
 // App.tsx — layout principal de MotionStudio
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Canvas as FabricCanvas } from 'fabric'
+import { Canvas as FabricCanvas, Image as FabricImage } from 'fabric'
 import CanvasEditor from './components/Canvas/CanvasEditor'
 import Toolbar from './components/Toolbar/Toolbar'
 import Inspector from './components/Inspector/Inspector'
@@ -16,16 +16,17 @@ import { loadFromLocalStorage, startAutosave } from './utils/storage'
 import { deserializeProject } from './utils/serializer'
 import { serializeProject } from './utils/serializer'
 import { useHistoryStore, HistorySnapshot } from './store/historyStore'
+import { splitClip } from './utils/splitClip'
 import styles from './App.module.css'
 
 export default function App() {
   const fabricCanvasRef = useRef<FabricCanvas | null>(null)
   const [fabricReady, setFabricReady] = useState(false)
 
-  const { setObjects, addObject, selectObject } = useObjectStore()
+  const { setObjects, addObject, updateObject, selectObject } = useObjectStore()
   const { pushSnapshot, undo, redo } = useHistoryStore()
   const { tracks, setTracks, setCurrentTime, setIsPlaying, duration, fps } = useTimelineStore()
-  const { projectName, isDirty, activeFormat, setActiveFormat, setProjectName, setDirty } = useUIStore()
+  const { projectName, isDirty, activeFormat, setActiveFormat, setProjectName, setDirty, setTimelineMode } = useUIStore()
 
   // Callback quand le canvas Fabric est prêt
   const handleCanvasReady = useCallback((canvas: FabricCanvas) => {
@@ -157,7 +158,124 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fabricReady, isDirty])
 
-  // ── Raccourcis clavier Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z ──────────────────
+  // ── Split Clip ───────────────────────────────────────────────────────────
+  const handleSplit = useCallback((objectId: string, splitTime: number) => {
+    const { objects } = useObjectStore.getState()
+    const obj = objects.find((o) => o.id === objectId)
+    if (!obj) return
+
+    const currentTracks   = useTimelineStore.getState().tracks
+    const currentDuration = useTimelineStore.getState().duration
+
+    const result = splitClip(obj, splitTime, currentTracks, currentDuration)
+    if (!result) return
+
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const srcFabricObj = canvas.getObjects().find((o) => (o as any).motionId === objectId)
+
+    const commitSplit = (newFabricObjOrNull: unknown) => {
+      if (newFabricObjOrNull) canvas.add(newFabricObjOrNull as Parameters<typeof canvas.add>[0])
+
+      updateObject(objectId, result.originalPatch)
+      addObject(result.newObject)
+
+      const updatedTracks = currentTracks.map((t) => {
+        const upd = result.tracksToUpdate.find((u) => u.id === t.id)
+        return upd ? { ...t, keyframes: upd.keyframes } : t
+      })
+      setTracks([...updatedTracks, ...result.newTracks])
+
+      setTimelineMode('select')
+      setDirty(true)
+      setTimeout(captureSnapshot, 50)
+    }
+
+    if (obj.type === 'video' && srcFabricObj) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const originalVideoEl = (srcFabricObj as any)._videoEl as HTMLVideoElement | undefined
+
+      if (originalVideoEl) {
+        const videoOffset = splitTime - (obj.startTime ?? 0)
+
+        // Créer un élément <video> indépendant avec la même source
+        const clonedVideoEl = document.createElement('video')
+        clonedVideoEl.src         = originalVideoEl.src
+        clonedVideoEl.muted       = true
+        clonedVideoEl.playsInline = true
+        clonedVideoEl.loop        = false
+        clonedVideoEl.preload     = 'auto'
+
+        clonedVideoEl.addEventListener('loadeddata', () => {
+          clonedVideoEl.currentTime = videoOffset
+          clonedVideoEl.pause()
+
+          const vw = originalVideoEl.videoWidth  || 640
+          const vh = originalVideoEl.videoHeight || 360
+
+          // Canvas offscreen — même pattern que handleVideoInput dans CanvasEditor
+          const offscreen    = document.createElement('canvas')
+          offscreen.width    = vw
+          offscreen.height   = vh
+          const ctx          = offscreen.getContext('2d')!
+
+          // Dessiner la frame de départ (évite le rectangle vide)
+          if (clonedVideoEl.readyState >= 2) {
+            ctx.drawImage(clonedVideoEl, 0, 0, vw, vh)
+          }
+
+          const rightFabricObj = new FabricImage(
+            offscreen as unknown as HTMLImageElement,
+            {
+              left:   srcFabricObj.left   ?? 50,
+              top:    srcFabricObj.top    ?? 50,
+              scaleX: srcFabricObj.scaleX ?? 1,
+              scaleY: srcFabricObj.scaleY ?? 1,
+              selectable:  true,
+              evented:     true,
+              hasControls: true,
+              hasBorders:  true,
+            }
+          )
+          rightFabricObj.objectCaching = false
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(rightFabricObj as any).motionId   = result.newObject.id
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(rightFabricObj as any)._videoEl   = clonedVideoEl
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(rightFabricObj as any)._offscreen = offscreen
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(rightFabricObj as any)._ctx       = ctx
+
+          // Invisible jusqu'à ce que le scrubber entre dans sa plage
+          rightFabricObj.visible = false
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(rightFabricObj as any)._stopRenderLoop = () => {
+            clonedVideoEl.pause()
+            // Ne pas révoquer l'URL : partagée avec le clip gauche
+          }
+
+          commitSplit(rightFabricObj)
+        }, { once: true })
+
+        clonedVideoEl.load()
+        return
+      }
+    }
+
+    // Types non-vidéo : clone Fabric générique (async ignoré — on n'attend pas)
+    srcFabricObj?.clone().then((cloned) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(cloned as any).motionId = result.newObject.id
+      commitSplit(cloned)
+    }) ?? commitSplit(null)
+  }, [updateObject, addObject, setTracks, setTimelineMode, setDirty, captureSnapshot])
+
+  // ── Raccourcis clavier Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z / S ───────────────
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
       const tag = (document.activeElement as HTMLElement)?.tagName
@@ -171,11 +289,17 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault()
         await handleRedo()
+      } else if (!e.ctrlKey && !e.metaKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        const currentMode = useUIStore.getState().timelineMode
+        setTimelineMode(currentMode === 'split' ? 'select' : 'split')
+      } else if (e.key === 'Escape') {
+        setTimelineMode('select')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [handleUndo, handleRedo])
+  }, [handleUndo, handleRedo, setTimelineMode])
 
   // Import audio — écouter le CustomEvent de la Toolbar
   useEffect(() => {
@@ -251,6 +375,7 @@ export default function App() {
           onCapture={captureSnapshot}
           onUndo={handleUndo}
           onRedo={handleRedo}
+          onSplit={handleSplit}
         />
       </div>
 

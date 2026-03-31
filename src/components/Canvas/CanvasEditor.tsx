@@ -40,6 +40,7 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
   const canvasElRef    = useRef<HTMLCanvasElement>(null)
   const fabricRef      = useRef<FabricCanvas | null>(null)
   const isDraggingRef  = useRef(false)
+  const masterRafRef   = useRef<number | null>(null)
   const activeToolRef  = useRef('select')  // ref pour éviter stale closure dans le handler mouse:down
   const captureRef     = useRef<(() => void) | undefined>(onCapture)
   captureRef.current   = onCapture
@@ -69,6 +70,58 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
     fabricRef.current = canvas
     animationEngine.init(canvas)
     onCanvasReady(canvas)
+
+    // ── Master render loop — UN seul RAF pour TOUTES les vidéos ───────────
+    // Pour chaque objet vidéo : vérifie si dans la plage timeline,
+    // met à jour l'offscreen canvas depuis videoEl, gère la visibilité.
+    const masterLoop = () => {
+      const fc = fabricRef.current
+      if (!fc) return
+      const motionObjects = useObjectStore.getState().objects
+      const currentTime   = useTimelineStore.getState().currentTime
+      let needsRender = false
+
+      for (const obj of fc.getObjects()) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const videoEl   = (obj as any)._videoEl   as HTMLVideoElement | undefined
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ctx       = (obj as any)._ctx       as CanvasRenderingContext2D | undefined
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const offscreen = (obj as any)._offscreen as HTMLCanvasElement | undefined
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const motionId  = (obj as any).motionId   as string | undefined
+
+        if (!videoEl || !ctx || !offscreen || !motionId) continue
+
+        const motionObj = motionObjects.find(mo => mo.id === motionId)
+        if (!motionObj) continue
+
+        const inRange = currentTime >= (motionObj.startTime ?? 0) && currentTime < (motionObj.endTime ?? Infinity)
+
+        if (inRange) {
+          if (!obj.visible) {
+            obj.visible = true
+            needsRender = true
+          }
+          if (videoEl.readyState >= 2) {
+            ctx.drawImage(videoEl, 0, 0, offscreen.width, offscreen.height)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ;(obj as any).dirty = true
+            needsRender = true
+          }
+        } else {
+          // Hors plage → masquer l'objet pour éviter qu'il reste affiché
+          if (obj.visible) {
+            obj.visible = false
+            needsRender = true
+          }
+        }
+      }
+
+      if (needsRender && !isDraggingRef.current) fc.requestRenderAll()
+      masterRafRef.current = requestAnimationFrame(masterLoop)
+    }
+    masterRafRef.current = requestAnimationFrame(masterLoop)
 
     // ── Événements de sélection ────────────────────────────────────────────
     canvas.on('selection:created', (e) => {
@@ -232,6 +285,7 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
     canvas.on('mouse:up', () => { isDraggingRef.current = false })
 
     return () => {
+      if (masterRafRef.current !== null) cancelAnimationFrame(masterRafRef.current)
       window.removeEventListener('motionstudio:create', onCreateTool)
       animationEngine.dispose()
       canvas.dispose()
@@ -318,63 +372,58 @@ export default function CanvasEditor({ onCanvasReady, onCapture }: CanvasEditorP
       const videoEl = document.createElement('video')
       videoEl.muted       = true
       videoEl.playsInline = true
-      videoEl.loop        = false   // esclave de la timeline — pas de boucle auto
+      videoEl.loop        = false
       videoEl.preload     = 'auto'
 
       videoEl.addEventListener('loadeddata', () => {
         const id    = generateId()
         const vw    = videoEl.videoWidth  || 640
         const vh    = videoEl.videoHeight || 360
-        const scale = Math.min(1, 640 / vw, 360 / vh)
 
-        // Canvas 2D intermédiaire — Fabric v6 ne lit pas les vidéos nativement
+        // Canvas 2D intermédiaire — approche fiable
         const offscreen    = document.createElement('canvas')
         offscreen.width    = vw
         offscreen.height   = vh
         const ctx          = offscreen.getContext('2d')!
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // Dessiner la première frame
+        ctx.drawImage(videoEl, 0, 0, vw, vh)
+
+        const scale = Math.min(
+          1,
+          (canvas.getWidth()  * 0.6) / vw,
+          (canvas.getHeight() * 0.6) / vh,
+        )
+
+        // Créer FabricImage depuis le canvas offscreen
         const fabricVideo = new FabricImage(offscreen as unknown as HTMLImageElement, {
           left: 50, top: 50,
-          width: vw, height: vh,
           scaleX: scale, scaleY: scale,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          objectCaching: false as any,   // CRITIQUE : désactive le cache de frame
           selectable: true, evented: true,
           hasControls: true, hasBorders: true,
         })
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(fabricVideo as any).motionId = id
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(fabricVideo as any)._videoEl = videoEl
+        // Désactiver le cache — le masterLoop met à jour offscreen à chaque frame
+        fabricVideo.objectCaching = false
 
-        // Figer sur frame 0 — NE PAS appeler play() ici
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(fabricVideo as any).motionId   = id
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(fabricVideo as any)._videoEl   = videoEl
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(fabricVideo as any)._offscreen = offscreen
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(fabricVideo as any)._ctx       = ctx
+
+        // Figer sur frame 0
         videoEl.pause()
         videoEl.currentTime = 0
 
         canvas.add(fabricVideo)
         canvas.setActiveObject(fabricVideo)
 
-        // RAF render loop : copie la frame vidéo courante dans le canvas intermédiaire
-        let rafId: number
-        const renderFrame = () => {
-          if (videoEl.readyState >= 2) {
-            ctx.drawImage(videoEl, 0, 0, vw, vh)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ;(fabricVideo as any).dirty = true
-            // Skip renderAll() pendant un drag Fabric pour éviter les conflits
-            if (!isDraggingRef.current) {
-              canvas.renderAll()
-            }
-          }
-          rafId = requestAnimationFrame(renderFrame)
-        }
-        rafId = requestAnimationFrame(renderFrame)
-
-        // Cleanup : arrêter RAF + libérer blob URL
+        // Cleanup : libérer blob URL
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(fabricVideo as any)._stopRenderLoop = () => {
-          cancelAnimationFrame(rafId)
           videoEl.pause()
           URL.revokeObjectURL(url)
         }
