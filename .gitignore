@@ -49,6 +49,9 @@ desktop.ini
 .eslintcache
 .cache/
 
+# Claude Code (paramètres locaux)
+.claude/
+
 # Fichiers médias uploadés localement (trop lourds pour Git)
 public/uploads/
 src/assets/videos/
