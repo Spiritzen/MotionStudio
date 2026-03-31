@@ -86,7 +86,7 @@ export default function Inspector({ fabricCanvas }: InspectorProps) {
     if (prop === 'x') obj.set('left', value as number)
     else if (prop === 'y') obj.set('top', value as number)
     else if (prop === 'opacity') obj.set('opacity', (value as number) / 100)
-    else if (prop === 'fill') (obj as FabricObject & { fill: string }).fill = value as string
+    else if (prop === 'fill') obj.set('fill' as keyof FabricObject, value as never)
     else obj.set(prop as keyof FabricObject, value as never)
 
     obj.setCoords()
@@ -142,6 +142,21 @@ export default function Inspector({ fabricCanvas }: InspectorProps) {
         }
       }, 50)
     }
+  }
+
+  // Helpers pour lire les propriétés texte depuis Fabric
+  const getFabricProp = (prop: string): unknown => {
+    if (!fabricCanvas || !selectedObjectId) return undefined
+    const obj = fabricCanvas.getObjects().find((o) => (o as any).motionId === selectedObjectId)
+    return obj?.get(prop as keyof FabricObject)
+  }
+
+  const getFontSize   = (): number => (getFabricProp('fontSize')   as number)  ?? 32
+  const getFontWeight = (): string => (getFabricProp('fontWeight') as string)  ?? 'normal'
+  const getFontStyle  = (): string => (getFabricProp('fontStyle')  as string)  ?? 'normal'
+  const getTextColor  = (): string => {
+    const fill = getFabricProp('fill')
+    return typeof fill === 'string' ? fill : '#e2e8f0'
   }
 
   // Affichage si aucun objet sélectionné : propriétés du canvas
@@ -385,6 +400,86 @@ export default function Inspector({ fabricCanvas }: InspectorProps) {
           </div>
         )}
       </div>
+      )}
+
+      {/* Section Texte */}
+      {objetSelectionne.type === 'text' && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Texte</div>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Couleur</span>
+            <input
+              type="color"
+              className={styles.colorInput}
+              value={getTextColor()}
+              onChange={(e) => {
+                appliquerProp('fill', e.target.value)
+                setProps((p) => ({ ...p, fill: e.target.value }))
+              }}
+            />
+          </div>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Taille</span>
+            <input
+              type="number"
+              className={styles.input}
+              min={8} max={200}
+              value={getFontSize()}
+              onChange={(e) => {
+                const size = parseInt(e.target.value)
+                if (!fabricCanvas || !selectedObjectId || isNaN(size)) return
+                const obj = fabricCanvas.getObjects().find((o) => (o as any).motionId === selectedObjectId)
+                if (!obj) return
+                obj.set('fontSize' as keyof FabricObject, size as never)
+                obj.setCoords()
+                fabricCanvas.renderAll()
+                setDirty(true)
+              }}
+            />
+          </div>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Style</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                style={{
+                  fontWeight: 'bold',
+                  background: getFontWeight() === 'bold' ? 'rgba(139,92,246,0.3)' : 'transparent',
+                  border: '1px solid #1e293b', color: '#e2e8f0',
+                  borderRadius: 4, padding: '2px 10px', cursor: 'pointer',
+                }}
+                onClick={() => {
+                  if (!fabricCanvas || !selectedObjectId) return
+                  const obj = fabricCanvas.getObjects().find((o) => (o as any).motionId === selectedObjectId)
+                  if (!obj) return
+                  const next = getFontWeight() === 'bold' ? 'normal' : 'bold'
+                  obj.set('fontWeight' as keyof FabricObject, next as never)
+                  fabricCanvas.renderAll()
+                  setDirty(true)
+                }}
+              >B</button>
+              <button
+                style={{
+                  fontStyle: 'italic',
+                  background: getFontStyle() === 'italic' ? 'rgba(139,92,246,0.3)' : 'transparent',
+                  border: '1px solid #1e293b', color: '#e2e8f0',
+                  borderRadius: 4, padding: '2px 10px', cursor: 'pointer',
+                }}
+                onClick={() => {
+                  if (!fabricCanvas || !selectedObjectId) return
+                  const obj = fabricCanvas.getObjects().find((o) => (o as any).motionId === selectedObjectId)
+                  if (!obj) return
+                  const next = getFontStyle() === 'italic' ? 'normal' : 'italic'
+                  obj.set('fontStyle' as keyof FabricObject, next as never)
+                  fabricCanvas.renderAll()
+                  setDirty(true)
+                }}
+              >I</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Visibilité et verrouillage */}

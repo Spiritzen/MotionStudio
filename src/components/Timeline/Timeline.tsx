@@ -39,6 +39,7 @@ interface TimelineProps {
   onCapture?: () => void
   onUndo?: () => void
   onRedo?: () => void
+  onSplit?: (objectId: string, splitTime: number) => void
 }
 
 function formatRulerTime(seconds: number): string {
@@ -47,7 +48,7 @@ function formatRulerTime(seconds: number): string {
   return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`
 }
 
-export default function Timeline({ fabricRef, onCapture, onUndo, onRedo }: TimelineProps) {
+export default function Timeline({ fabricRef, onCapture, onUndo, onRedo, onSplit }: TimelineProps) {
   const {
     tracks, currentTime, duration, isPlaying,
     setCurrentTime, addKeyframe, removeTrack,
@@ -56,7 +57,7 @@ export default function Timeline({ fabricRef, onCapture, onUndo, onRedo }: Timel
     objects, removeObject, reorderObjects, addObject,
     updateClip, updateObject, selectedObjectId, selectObject,
   } = useObjectStore()
-  const { setDirty } = useUIStore()
+  const { setDirty, timelineMode, setTimelineMode } = useUIStore()
   const canUndo = useHistoryStore((s) => s.canUndo)
   const canRedo = useHistoryStore((s) => s.canRedo)
 
@@ -64,6 +65,7 @@ export default function Timeline({ fabricRef, onCapture, onUndo, onRedo }: Timel
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set())
   const [draggedId,  setDraggedId]  = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [splitPreviewX, setSplitPreviewX] = useState<number | null>(null)
 
   const scrollRef    = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
@@ -256,6 +258,25 @@ export default function Timeline({ fabricRef, onCapture, onUndo, onRedo }: Timel
             </svg>
           </button>
         </div>
+
+        <div className={styles.toolbarSeparator} />
+
+        {/* Bouton ciseaux — mode Split */}
+        <button
+          className={`${styles.historyBtn} ${timelineMode === 'split' ? styles.historyBtnActive : ''}`}
+          onClick={() => setTimelineMode(timelineMode === 'split' ? 'select' : 'split')}
+          title="Couper un clip  S"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="6"  cy="6"  r="3"/>
+            <circle cx="6"  cy="18" r="3"/>
+            <line x1="20" y1="4"  x2="8.12"  y2="15.88"/>
+            <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+            <line x1="8.12"  y1="8.12"  x2="12" y2="12"/>
+          </svg>
+        </button>
       </div>
 
       {/* ── Body : labels (fixe) + zone scrollable (droite) ──────────────── */}
@@ -372,8 +393,21 @@ export default function Timeline({ fabricRef, onCapture, onUndo, onRedo }: Timel
         </div>
 
         {/* Zone droite SCROLLABLE */}
-        <div ref={scrollRef} className={styles.scrollArea}>
-          <div style={{ width: totalWidth, position: 'relative', minWidth: '100%' }}>
+        <div
+          ref={scrollRef}
+          className={styles.scrollArea}
+          onMouseLeave={() => setSplitPreviewX(null)}
+        >
+          <div
+            style={{ width: totalWidth, position: 'relative', minWidth: '100%' }}
+            onMouseMove={(e) => {
+              if (timelineMode !== 'split') return
+              const el = scrollRef.current
+              if (!el) return
+              const x = e.clientX - el.getBoundingClientRect().left + el.scrollLeft
+              setSplitPreviewX(x)
+            }}
+          >
 
             {/* Règle temporelle */}
             <div className={styles.ruler} onMouseDown={handleRulerMouseDown}>
@@ -387,6 +421,11 @@ export default function Timeline({ fabricRef, onCapture, onUndo, onRedo }: Timel
 
             {/* Ligne verticale du scrubber */}
             <div className={styles.scrubberLine} style={{ left: scrubberX }} />
+
+            {/* Ligne de prévisualisation du split */}
+            {timelineMode === 'split' && splitPreviewX !== null && (
+              <div className={styles.splitPreviewLine} style={{ left: splitPreviewX }} />
+            )}
 
             {objects.length === 0 && (
               <div className={styles.emptyMessage}>
@@ -414,6 +453,15 @@ export default function Timeline({ fabricRef, onCapture, onUndo, onRedo }: Timel
                         }
                       }}
                     />
+                    {/* Overlay transparent pour le mode ciseaux */}
+                    {timelineMode === 'split' && (
+                      <div
+                        className={styles.splitOverlay}
+                        onClick={(e) => {
+                          onSplit?.(obj.id, xToTime(e.clientX))
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Lignes keyframe (dépliées) */}

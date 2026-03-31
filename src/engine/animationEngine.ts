@@ -37,8 +37,14 @@ const state: EngineState = {
 
 // ─── Helpers vidéo ──────────────────────────────────────────────────────────
 
-/** Associe chaque videoEl Fabric à son MotionObject du store */
-function getAllVideoObjectPairs(): Array<{ videoEl: HTMLVideoElement; motionObj: MotionObject }> {
+interface VideoPair {
+  videoEl:     HTMLVideoElement
+  motionObj:   MotionObject
+  videoOffset: number
+}
+
+/** Associe chaque videoEl Fabric à son MotionObject du store (avec videoOffset) */
+function getAllVideoObjectPairs(): VideoPair[] {
   if (!state.fabricCanvas) return []
   const motionObjects = useObjectStore.getState().objects
 
@@ -46,16 +52,37 @@ function getAllVideoObjectPairs(): Array<{ videoEl: HTMLVideoElement; motionObj:
     .getObjects()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((obj) => !!(obj as any)._videoEl)
-    .map((obj) => ({
+    .map((obj) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      videoEl:   (obj as any)._videoEl as HTMLVideoElement,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      motionObj: motionObjects.find((mo) => mo.id === (obj as any).motionId),
-    }))
-    .filter(
-      (pair): pair is { videoEl: HTMLVideoElement; motionObj: MotionObject } =>
-        pair.motionObj !== undefined
-    )
+      const motionObj = motionObjects.find((mo) => mo.id === (obj as any).motionId)
+      return {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        videoEl:     (obj as any)._videoEl as HTMLVideoElement,
+        motionObj,
+        videoOffset: motionObj?.videoOffset ?? 0,
+      }
+    })
+    .filter((pair): pair is VideoPair => pair.motionObj !== undefined)
+}
+
+/** Synchronise la visibilité des objets vidéo selon la plage timeline */
+function syncVideoVisibility(time: number): void {
+  if (!state.fabricCanvas) return
+  const motionObjects = useObjectStore.getState().objects
+
+  state.fabricCanvas.getObjects().forEach((obj) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const motionId = (obj as any).motionId as string | undefined
+    if (!motionId) return
+
+    const motionObj = motionObjects.find((mo) => mo.id === motionId)
+    if (!motionObj || motionObj.type !== 'video') return
+
+    const inRange = time >= (motionObj.startTime ?? 0) && time < (motionObj.endTime ?? state.duration)
+    obj.visible = inRange
+  })
+
+  state.fabricCanvas.requestRenderAll()
 }
 
 // Applique les valeurs interpolées sur les objets Fabric au temps t
@@ -97,13 +124,13 @@ function rafLoop(): void {
   state.currentTime = newTime
 
   // Synchroniser les vidéos selon leur plage de clip
-  getAllVideoObjectPairs().forEach(({ videoEl, motionObj }) => {
+  getAllVideoObjectPairs().forEach(({ videoEl, motionObj, videoOffset }) => {
     const startTime = motionObj.startTime ?? 0
     const endTime   = motionObj.endTime   ?? state.duration
     const inRange   = newTime >= startTime && newTime < endTime
 
     if (inRange && videoEl.paused) {
-      videoEl.currentTime = newTime - startTime
+      videoEl.currentTime = videoOffset + (newTime - startTime)
       videoEl.muted       = motionObj.muted  ?? false
       videoEl.volume      = motionObj.volume ?? 1
       videoEl.play().catch(console.warn)
@@ -154,14 +181,17 @@ export const animationEngine = {
     state.startWallTime = performance.now()
     state.startAnimTime = state.currentTime
 
+    // Synchroniser la visibilité avant de démarrer
+    syncVideoVisibility(state.currentTime)
+
     // Démarrer les vidéos dans leur plage — unmute via geste utilisateur (clic Play)
-    getAllVideoObjectPairs().forEach(({ videoEl, motionObj }) => {
+    getAllVideoObjectPairs().forEach(({ videoEl, motionObj, videoOffset }) => {
       const startTime = motionObj.startTime ?? 0
       const endTime   = motionObj.endTime   ?? state.duration
       const t         = state.currentTime
 
       if (t >= startTime && t < endTime) {
-        videoEl.currentTime = t - startTime
+        videoEl.currentTime = videoOffset + (t - startTime)
         videoEl.muted       = motionObj.muted  ?? false
         videoEl.volume      = motionObj.volume ?? 1
         videoEl.play().catch(console.warn)
@@ -199,6 +229,7 @@ export const animationEngine = {
     })
     audioManager.stopAll()
     applyStateAtTime(0)
+    syncVideoVisibility(0)
     for (const cb of state.tickCallbacks) cb(0)
   },
 
@@ -209,24 +240,26 @@ export const animationEngine = {
     state.startAnimTime = t
     state.startWallTime = performance.now()
 
-    getAllVideoObjectPairs().forEach(({ videoEl, motionObj }) => {
+    getAllVideoObjectPairs().forEach(({ videoEl, motionObj, videoOffset }) => {
       videoEl.pause()
       const startTime = motionObj.startTime ?? 0
       const endTime   = motionObj.endTime   ?? state.duration
       if (t >= startTime && t < endTime) {
-        videoEl.currentTime = t - startTime
+        videoEl.currentTime = videoOffset + (t - startTime)
       }
     })
 
     audioManager.seekAll(t)
     applyStateAtTime(t)
+    syncVideoVisibility(t)
 
     // Reprendre si en lecture
     if (state.isPlaying) {
-      getAllVideoObjectPairs().forEach(({ videoEl, motionObj }) => {
+      getAllVideoObjectPairs().forEach(({ videoEl, motionObj, videoOffset }) => {
         const startTime = motionObj.startTime ?? 0
         const endTime   = motionObj.endTime   ?? state.duration
         if (t >= startTime && t < endTime) {
+          videoEl.currentTime = videoOffset + (t - startTime)
           videoEl.muted  = motionObj.muted  ?? false
           videoEl.volume = motionObj.volume ?? 1
           videoEl.play().catch(console.warn)

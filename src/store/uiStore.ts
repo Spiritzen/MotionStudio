@@ -11,6 +11,7 @@ interface UIState {
   activeFormat: CanvasFormat
   inspectorRefreshKey: number  // incrémenter pour forcer le re-render de l'Inspector
   canvasZoom: number           // pourcentage : 10–200, ou 0 = fit automatique
+  timelineMode: 'select' | 'split'  // mode actif dans la timeline
   // Actions
   setActiveTool: (tool: ActiveTool) => void
   setProjectName: (name: string) => void
@@ -18,6 +19,7 @@ interface UIState {
   setActiveFormat: (format: CanvasFormat) => void
   forceInspectorUpdate: () => void
   setCanvasZoom: (zoom: number) => void
+  setTimelineMode: (mode: 'select' | 'split') => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -27,6 +29,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeFormat: CANVAS_FORMATS[0], // YouTube 16:9 par défaut
   inspectorRefreshKey: 0,
   canvasZoom: 0,                   // 0 = mode fit au démarrage
+  timelineMode: 'select',
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   setProjectName: (name) => set({ projectName: name }),
@@ -34,4 +37,5 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveFormat: (format) => set({ activeFormat: format }),
   forceInspectorUpdate: () => set((s) => ({ inspectorRefreshKey: s.inspectorRefreshKey + 1 })),
   setCanvasZoom: (zoom) => set({ canvasZoom: zoom }),
+  setTimelineMode: (mode) => set({ timelineMode: mode }),
 }))
