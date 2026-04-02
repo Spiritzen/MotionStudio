@@ -1,0 +1,83 @@
+.footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  z-index: 500;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+
+  background: #0a0d14;
+  border-top: 1px solid #1e293b;
+
+  font-size: 11px;
+  color: #64748b;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Gauche */
+.left {
+  white-space: nowrap;
+  color: #475569;
+}
+
+/* Centre */
+.center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+}
+
+.dot {
+  color: #2d3748;
+}
+
+/* Droite */
+.right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Lien générique */
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: #64748b;
+  text-decoration: none;
+  font-size: 11px;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.link:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* LinkedIn — bleu au survol */
+.linkedin:hover {
+  color: #0077b5;
+  background: rgba(0, 119, 181, 0.1);
+}
+
+/* YouTube — rouge au survol */
+.youtube:hover {
+  color: #ff0000;
+  background: rgba(255, 0, 0, 0.1);
+}
+
+/* CV — amber au survol */
+.cv:hover {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}

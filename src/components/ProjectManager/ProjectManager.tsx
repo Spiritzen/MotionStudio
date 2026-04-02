@@ -9,14 +9,16 @@ import { deserializeProject } from '../../utils/serializer'
 import { saveToLocalStorage } from '../../utils/storage'
 import { exportProjectFile, importProjectFile } from '../../utils/exportJSON'
 import { generateGSAPCode } from '../../utils/exportGSAP'
+import { generateCSSKeyframes } from '../../utils/exportCSS'
 import { CANVAS_FORMATS, CanvasFormat } from '../../types'
 import styles from './ProjectManager.module.css'
 
 interface ProjectManagerProps {
-  fabricCanvas: FabricCanvas | null
+  fabricCanvas:   FabricCanvas | null
+  onExportVideo?: () => void
 }
 
-export default function ProjectManager({ fabricCanvas }: ProjectManagerProps) {
+export default function ProjectManager({ fabricCanvas, onExportVideo }: ProjectManagerProps) {
   const { objects, setObjects } = useObjectStore()
   const { tracks, currentTime: _ct, duration, fps, setTracks } = useTimelineStore()
   const { projectName, isDirty, activeFormat, setProjectName, setDirty, setActiveFormat, canvasZoom, setCanvasZoom } = useUIStore()
@@ -143,6 +145,30 @@ export default function ProjectManager({ fabricCanvas }: ProjectManagerProps) {
     setShowExportMenu(false)
   }
 
+  // Exporter CSS Keyframes → téléchargement .css
+  async function handleExportCSS() {
+    try {
+      const project = await getProject()
+      const css     = generateCSSKeyframes(project)
+      const blob    = new Blob([css], { type: 'text/css' })
+      const url     = URL.createObjectURL(blob)
+      const a       = document.createElement('a')
+      a.href        = url
+      a.download    = `${project.name}.css`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('[MotionStudio] Erreur export CSS:', err)
+    }
+    setShowExportMenu(false)
+  }
+
+  // Ouvrir modale export vidéo
+  function handleExportVideo() {
+    setShowExportMenu(false)
+    onExportVideo?.()
+  }
+
   // Zoom canvas
   function zoomStep(dir: 1 | -1) {
     const current = canvasZoom === 0 ? 100 : canvasZoom
@@ -225,6 +251,12 @@ export default function ProjectManager({ fabricCanvas }: ProjectManagerProps) {
             </button>
             <button className={styles.dropdownItem} onClick={handleExportGSAP}>
               💻 Exporter code GSAP
+            </button>
+            <button className={styles.dropdownItem} onClick={handleExportCSS}>
+              🎨 Exporter CSS Keyframes
+            </button>
+            <button className={styles.dropdownItem} onClick={handleExportVideo}>
+              🎬 Exporter vidéo (WebM/MP4)
             </button>
           </div>
         )}
