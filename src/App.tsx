@@ -17,11 +17,13 @@ import { deserializeProject } from './utils/serializer'
 import { serializeProject } from './utils/serializer'
 import { useHistoryStore, HistorySnapshot } from './store/historyStore'
 import { splitClip } from './utils/splitClip'
+import ExportModal from './components/ExportModal/ExportModal'
 import styles from './App.module.css'
 
 export default function App() {
   const fabricCanvasRef = useRef<FabricCanvas | null>(null)
-  const [fabricReady, setFabricReady] = useState(false)
+  const [fabricReady,      setFabricReady]      = useState(false)
+  const [exportModalOpen,  setExportModalOpen]  = useState(false)
 
   const { setObjects, addObject, updateObject, selectObject } = useObjectStore()
   const { pushSnapshot, undo, redo } = useHistoryStore()
@@ -367,7 +369,10 @@ export default function App() {
     <div className={styles.app}>
       {/* Barre supérieure */}
       <div className={styles.topBar}>
-        <ProjectManager fabricCanvas={fabricCanvasRef.current} />
+        <ProjectManager
+          fabricCanvas={fabricCanvasRef.current}
+          onExportVideo={() => setExportModalOpen(true)}
+        />
       </div>
 
       {/* Toolbar */}
@@ -401,6 +406,13 @@ export default function App() {
         />
       </div>
 
+      <ExportModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        fabricCanvas={fabricCanvasRef.current}
+        duration={duration}
+        projectName={projectName}
+      />
     </div>
   )
 }
