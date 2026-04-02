@@ -18,6 +18,7 @@ import { serializeProject } from './utils/serializer'
 import { useHistoryStore, HistorySnapshot } from './store/historyStore'
 import { splitClip } from './utils/splitClip'
 import ExportModal from './components/ExportModal/ExportModal'
+import Footer from './components/Footer/Footer'
 import styles from './App.module.css'
 
 export default function App() {
@@ -413,6 +414,8 @@ export default function App() {
         duration={duration}
         projectName={projectName}
       />
+
+      <Footer />
     </div>
   )
 }
