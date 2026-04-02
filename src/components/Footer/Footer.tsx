@@ -12,7 +12,7 @@ export default function Footer() {
 
       {/* Centre — Version + Licence */}
       <div className={styles.center}>
-        <span>v1.0.0</span>
+        <span>v1.1.3</span>
         <span className={styles.dot}>·</span>
         <span>Open Source</span>
         <span className={styles.dot}>·</span>
